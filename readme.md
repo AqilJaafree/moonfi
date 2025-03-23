@@ -1,8 +1,8 @@
-# MuslimGo: Shariah-Compliant Financial Platform
+# MoonFi: Shariah-Compliant Financial Platform
 
 ## Overview
 
-MuslimGo is an innovative blockchain-based platform designed to help Muslims fulfill their religious financial obligations through secure, transparent, and interest-free mechanisms.
+Moonfi is an innovative blockchain-based platform designed to help Muslims fulfill their religious financial obligations through secure, transparent, and interest-free mechanisms.
 
 ## Architecture Diagram
 
