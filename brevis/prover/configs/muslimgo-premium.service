@@ -1,0 +1,15 @@
+[Unit]
+Description=MuslimGo Premium Prover Service
+After=network-online.target
+
+[Service]
+Environment=HOME=/home/ubuntu
+ExecStart=/home/ubuntu/go/bin/premium_prover -port=33248
+StandardOutput=append:/var/log/muslimgo/premium.log
+StandardError=append:/var/log/muslimgo/premium.log
+Restart=always
+RestartSec=3
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

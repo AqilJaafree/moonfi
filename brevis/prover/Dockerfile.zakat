@@ -1,0 +1,23 @@
+FROM golang:1.24
+
+WORKDIR /app
+
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y build-essential wget && rm -rf /var/lib/apt/lists/*
+
+# Copy Go files
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . ./
+
+# Create directories
+RUN mkdir -p /root/circuitOut/zakat /root/kzgsrs
+
+# Download SRS file
+RUN wget -O /root/kzgsrs/kzg_srs_100800000_bn254_MAIN_IGNITION https://kzg-srs.s3.us-west-2.amazonaws.com/kzg_srs_100800000_bn254_MAIN_IGNITION
+
+# Expose port
+EXPOSE 33247
+
+# Start just the Zakat prover
+CMD ["go", "run", "./cmd/zakat_prover.go"]

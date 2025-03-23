@@ -1,0 +1,15 @@
+[Unit]
+Description=MuslimGo Zakat Prover Service
+After=network-online.target
+
+[Service]
+Environment=HOME=/home/ubuntu
+ExecStart=/home/ubuntu/go/bin/zakat_prover -port=33247
+StandardOutput=append:/var/log/muslimgo/zakat.log
+StandardError=append:/var/log/muslimgo/zakat.log
+Restart=always
+RestartSec=3
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
