@@ -50,7 +50,36 @@ export class BrevisService {
       };
     }
   }
-
+  async generatePremiumProof(txHash: string, userAddress?: string) {
+    console.log(`Generating Premium proof for transaction ${txHash}`);
+    
+    try {
+      const response = await axios.post(`${API_SERVER_URL}/api/generate-proof/premium`, {
+        txHash: txHash,
+        userAddress: userAddress
+      });
+      
+      if (response.status !== 200 || !response.data.success) {
+        throw new Error(`Proof verification failed: ${JSON.stringify(response.data)}`);
+      }
+      
+      return {
+        success: true,
+        proofData: response.data.proofData,
+        queryKey: response.data.proofData?.queryKey,
+        vkHash: response.data.proofData?.vkHash,
+        verified: response.data.proofData?.verified,
+        message: `Premium verification initiated`,
+        simulated: response.data.proofData?.simulated
+      };
+    } catch (error: any) {
+      console.error(`Error generating Premium proof:`, error);
+      return {
+        success: false,
+        error: error.message || `Failed to generate Premium proof`
+      };
+    }
+  }
   /**
    * Check if a proof has been verified on the Brevis network
    * 

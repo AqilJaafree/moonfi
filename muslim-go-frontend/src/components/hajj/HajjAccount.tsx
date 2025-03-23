@@ -7,19 +7,16 @@ import {
   Flex,
   Text,
   Heading,
-  Divider,
   useColorModeValue,
   Progress,
   NumberInput,
   NumberInputField,
   useToast,
-  Alert,
-  AlertIcon,
-  AlertDescription,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../../contexts/Web3Context';
 import { getHajjContract, parseEther, formatEther } from '../../utils/contracts';
+import { brevisService } from '../../utils/brevisService';
 
 interface AccountInfo {
   goal: ethers.BigNumber;
@@ -30,28 +27,42 @@ interface AccountInfo {
 
 const HajjAccount: React.FC = () => {
   const { account, provider, isCorrectNetwork } = useWeb3();
+  
+  // Premium and Account States
   const [isPremiumUser, setIsPremiumUser] = useState(false);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  
+  // Form Input States
   const [goalAmount, setGoalAmount] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [txHash, setTxHash] = useState('');
+  
+  // Loading States
   const [isCreating, setIsCreating] = useState(false);
   const [isDepositing, setIsDepositing] = useState(false);
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const toast = useToast();
+  const [isVerifying, setIsVerifying] = useState(false);
   
+  const toast = useToast();
   const bgColor = useColorModeValue('white', 'gray.700');
-  const progressColor = useColorModeValue('green.500', 'green.300');
 
-  // Check if user is a verified premium user
-  const checkPremiumStatus = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      setIsPremiumUser(false);
-      return;
+  // Get Safe Provider
+  const getProvider = () => {
+    if (!provider) {
+      throw new Error('Provider not available');
     }
-    
+    return provider;
+  };
+
+  // Verify Premium Status
+  const checkPremiumStatus = async () => {
     try {
-      const hajjContract = getHajjContract(provider);
+      if (!account || !isCorrectNetwork) {
+        setIsPremiumUser(false);
+        return;
+      }
+      
+      const safeProvider = getProvider();
+      const hajjContract = getHajjContract(safeProvider);
       const status = await hajjContract.verifiedPremiumUsers(account);
       setIsPremiumUser(status);
     } catch (error) {
@@ -60,15 +71,286 @@ const HajjAccount: React.FC = () => {
     }
   };
 
-  // Fetch account information
+  // Verify Premium User via Brevis
+  const verifyPremiumStatus = async () => {
+    try {
+      if (!account || !isCorrectNetwork) {
+        toast({
+          title: 'Connection Error',
+          description: 'Please connect wallet to Sepolia network',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+
+      if (!txHash) {
+        toast({
+          title: 'Missing Transaction',
+          description: 'Please enter a transaction hash',
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+
+      setIsVerifying(true);
+      
+      const result = await brevisService.generatePremiumProof(txHash, account);
+      
+      if (result.success) {
+        // Simulate verification for demo
+        setIsPremiumUser(true);
+        
+        toast({
+          title: 'Premium Verification',
+          description: 'Successfully verified premium status',
+          status: 'success',
+          duration: 3000,
+        });
+      } else {
+        throw new Error(result.error || 'Verification failed');
+      }
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      
+      toast({
+        title: 'Verification Failed',
+        description: error.message || 'Could not verify premium status',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Create Hajj Savings Account
+  const createAccount = async () => {
+    if (!isPremiumUser) {
+      toast({
+        title: 'Premium Required',
+        description: 'You need to be a verified premium user',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!goalAmount || parseFloat(goalAmount) <= 0) {
+      toast({
+        title: 'Invalid Goal',
+        description: 'Please enter a valid savings goal',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const safeProvider = getProvider();
+      const hajjContract = getHajjContract(safeProvider);
+      const tx = await hajjContract.createAccount(parseEther(goalAmount));
+      
+      toast({
+        title: 'Account Created',
+        description: 'Your Hajj savings account is being set up',
+        status: 'success',
+        duration: 3000,
+      });
+      
+      await tx.wait();
+      await fetchAccountInfo();
+    } catch (error: any) {
+      console.error('Account creation error:', error);
+      toast({
+        title: 'Creation Failed',
+        description: error.message || 'Could not create account',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Mock Create Account
+  const mockCreateAccount = async () => {
+    if (!isPremiumUser) {
+      toast({
+        title: 'Premium Required',
+        description: 'You need to be a verified premium user',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!goalAmount || parseFloat(goalAmount) <= 0) {
+      toast({
+        title: 'Invalid Goal',
+        description: 'Please enter a valid savings goal',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      // Simulate account creation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Mock account info
+      setAccountInfo({
+        goal: ethers.utils.parseEther(goalAmount),
+        balance: ethers.utils.parseEther('0'),
+        lastUpdateTime: ethers.BigNumber.from(Date.now()),
+        isActive: true
+      });
+      
+      toast({
+        title: 'Mock Account Created',
+        description: `Hajj savings account created with goal ${goalAmount} ETH`,
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Mock account creation error:', error);
+      toast({
+        title: 'Mock Creation Failed',
+        description: 'Could not create mock account',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Deposit to Hajj Account
+  const deposit = async () => {
+    if (!accountInfo?.isActive) {
+      toast({
+        title: 'No Active Account',
+        description: 'Create a Hajj savings account first',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!depositAmount || parseFloat(depositAmount) <= 0) {
+      toast({
+        title: 'Invalid Amount',
+        description: 'Please enter a valid deposit amount',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      const safeProvider = getProvider();
+      const hajjContract = getHajjContract(safeProvider);
+      const tx = await hajjContract.deposit({
+        value: parseEther(depositAmount)
+      });
+      
+      toast({
+        title: 'Deposit Successful',
+        description: `Deposited ${depositAmount} ETH to Hajj savings`,
+        status: 'success',
+        duration: 3000,
+      });
+      
+      await tx.wait();
+      await fetchAccountInfo();
+      setDepositAmount('');
+    } catch (error: any) {
+      console.error('Deposit error:', error);
+      toast({
+        title: 'Deposit Failed',
+        description: error.message || 'Could not deposit funds',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+
+  // Mock Deposit
+  const mockDeposit = async () => {
+    if (!accountInfo?.isActive) {
+      toast({
+        title: 'No Active Account',
+        description: 'Create a Hajj savings account first',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!depositAmount || parseFloat(depositAmount) <= 0) {
+      toast({
+        title: 'Invalid Amount',
+        description: 'Please enter a valid deposit amount',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      // Simulate deposit
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Update mock account balance
+      const currentBalance = accountInfo.balance;
+      const depositWei = parseEther(depositAmount);
+      const newBalance = currentBalance.add(depositWei);
+      
+      setAccountInfo({
+        ...accountInfo,
+        balance: newBalance,
+        lastUpdateTime: ethers.BigNumber.from(Date.now())
+      });
+      
+      toast({
+        title: 'Mock Deposit',
+        description: `Deposited ${depositAmount} ETH to Hajj savings`,
+        status: 'success',
+        duration: 3000,
+      });
+      
+      setDepositAmount('');
+    } catch (error) {
+      console.error('Mock deposit error:', error);
+      toast({
+        title: 'Mock Deposit Failed',
+        description: 'Could not simulate deposit',
+        status: 'error',
+        duration: 3000,
+      });
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+
+  // Fetch Account Information
   const fetchAccountInfo = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
+    if (!account || !isCorrectNetwork) {
       setAccountInfo(null);
       return;
     }
     
     try {
-      const hajjContract = getHajjContract(provider);
+      const safeProvider = getProvider();
+      const hajjContract = getHajjContract(safeProvider);
       const info = await hajjContract.accounts(account);
       setAccountInfo({
         goal: info.goal,
@@ -82,261 +364,14 @@ const HajjAccount: React.FC = () => {
     }
   };
 
-  // Create a Hajj savings account
-  const createAccount = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      toast({
-        title: 'Connection error',
-        description: 'Please connect your wallet to Sepolia network',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!isPremiumUser) {
-      toast({
-        title: 'Premium required',
-        description: 'You need to be a verified premium user',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!goalAmount || parseFloat(goalAmount) <= 0) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Please enter a valid goal amount',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const hajjContract = getHajjContract(provider);
-      const tx = await hajjContract.createAccount(parseEther(goalAmount));
-      
-      toast({
-        title: 'Transaction sent',
-        description: 'Your account creation is being processed',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      await tx.wait();
-      
-      toast({
-        title: 'Account created',
-        description: 'Your Hajj savings account has been created successfully',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // Reset form and refresh data
-      setGoalAmount('');
-      fetchAccountInfo();
-    } catch (error: any) {
-      console.error('Account creation error:', error);
-      toast({
-        title: 'Account creation failed',
-        description: error.message || 'An error occurred',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  // Deposit to Hajj savings account
-  const deposit = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      toast({
-        title: 'Connection error',
-        description: 'Please connect your wallet to Sepolia network',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!accountInfo?.isActive) {
-      toast({
-        title: 'No active account',
-        description: 'You need to create an account first',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!depositAmount || parseFloat(depositAmount) <= 0) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Please enter a valid deposit amount',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsDepositing(true);
-    try {
-      const hajjContract = getHajjContract(provider);
-      const tx = await hajjContract.deposit({
-        value: parseEther(depositAmount)
-      });
-      
-      toast({
-        title: 'Transaction sent',
-        description: 'Your deposit is being processed',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      await tx.wait();
-      
-      toast({
-        title: 'Deposit successful',
-        description: 'Your funds have been added to your Hajj savings account',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // Reset form and refresh data
-      setDepositAmount('');
-      fetchAccountInfo();
-    } catch (error: any) {
-      console.error('Deposit error:', error);
-      toast({
-        title: 'Deposit failed',
-        description: error.message || 'An error occurred',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsDepositing(false);
-    }
-  };
-
-  // Withdraw from Hajj savings account
-  const withdraw = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      toast({
-        title: 'Connection error',
-        description: 'Please connect your wallet to Sepolia network',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!accountInfo?.isActive) {
-      toast({
-        title: 'No active account',
-        description: 'You need to create an account first',
-        status: 'warning',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Please enter a valid withdrawal amount',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    const withdrawWei = parseEther(withdrawAmount);
-    if (withdrawWei.gt(accountInfo.balance)) {
-      toast({
-        title: 'Insufficient funds',
-        description: 'Withdrawal amount exceeds your balance',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsWithdrawing(true);
-    try {
-      const hajjContract = getHajjContract(provider);
-      const tx = await hajjContract.withdraw(withdrawWei);
-      
-      toast({
-        title: 'Transaction sent',
-        description: 'Your withdrawal is being processed',
-        status: 'info',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      await tx.wait();
-      
-      toast({
-        title: 'Withdrawal successful',
-        description: 'Your funds have been withdrawn from your Hajj savings account',
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      });
-      
-      // Reset form and refresh data
-      setWithdrawAmount('');
-      fetchAccountInfo();
-    } catch (error: any) {
-      console.error('Withdrawal error:', error);
-      toast({
-        title: 'Withdrawal failed',
-        description: error.message || 'An error occurred',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsWithdrawing(false);
-    }
-  };
-
-  // Calculate progress percentage
+  // Calculate Savings Progress
   const calculateProgress = (): number => {
     if (!accountInfo || accountInfo.goal.isZero()) return 0;
-    
     const progress = accountInfo.balance.mul(100).div(accountInfo.goal);
     return Math.min(100, parseInt(progress.toString()));
   };
 
-  // Format date from timestamp
-  const formatDate = (timestamp: ethers.BigNumber): string => {
-    if (timestamp.isZero()) return 'Never';
-    const date = new Date(timestamp.toNumber() * 1000);
-    return date.toLocaleDateString();
-  };
-
-  // Fetch account data when required
+  // Check status on account/network change
   useEffect(() => {
     checkPremiumStatus();
     fetchAccountInfo();
@@ -346,155 +381,123 @@ const HajjAccount: React.FC = () => {
     <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="base">
       <Flex direction="column" gap={6}>
         <Heading size="md">Hajj Savings Program</Heading>
-        <Text>
-          Save for your Hajj pilgrimage with our Shariah-compliant savings account. 
-          Set a goal, make regular contributions, and track your progress.
-        </Text>
         
-        {!account && (
-          <Alert status="warning">
-            <AlertIcon />
-            <AlertDescription>Please connect your wallet to use Hajj savings</AlertDescription>
-          </Alert>
-        )}
-
-        {account && !isCorrectNetwork && (
-          <Alert status="warning">
-            <AlertIcon />
-            <AlertDescription>Please switch to Sepolia network</AlertDescription>
-          </Alert>
-        )}
-
-        {account && isCorrectNetwork && !isPremiumUser && (
-          <Alert status="info">
-            <AlertIcon />
-            <AlertDescription>
-              This is a premium feature. You need to be a verified premium user to access Hajj savings.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {account && isCorrectNetwork && isPremiumUser && (
-          <>
-            {!accountInfo?.isActive ? (
-              <Box borderWidth={1} borderRadius="md" p={5}>
-                <Heading size="sm" mb={3}>Create Hajj Savings Account</Heading>
-                <FormControl id="goalAmount" mb={4}>
-                  <FormLabel>Savings Goal (ETH)</FormLabel>
-                  <NumberInput min={0} precision={4}>
-                    <NumberInputField
-                      value={goalAmount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGoalAmount(e.target.value)}
-                      placeholder="Enter your Hajj savings goal"
-                    />
-                  </NumberInput>
-                  <Text fontSize="sm" color="gray.500" mt={1}>
-                    Set a realistic goal for your Hajj pilgrimage expenses
-                  </Text>
-                </FormControl>
-                <Button
-                  colorScheme="green"
-                  onClick={createAccount}
-                  isLoading={isCreating}
-                  loadingText="Creating..."
-                  isDisabled={!goalAmount || parseFloat(goalAmount) <= 0}
-                >
-                  Create Savings Account
-                </Button>
-              </Box>
-            ) : (
-              <>
-                <Box borderWidth={1} borderRadius="md" p={5}>
-                  <Heading size="sm" mb={3}>Your Hajj Savings</Heading>
-                  <Flex justify="space-between" mb={2}>
-                    <Text>Goal:</Text>
-                    <Text fontWeight="bold">{formatEther(accountInfo.goal)} ETH</Text>
-                  </Flex>
-                  <Flex justify="space-between" mb={2}>
-                    <Text>Current Balance:</Text>
-                    <Text fontWeight="bold">{formatEther(accountInfo.balance)} ETH</Text>
-                  </Flex>
-                  <Flex justify="space-between" mb={4}>
-                    <Text>Last Update:</Text>
-                    <Text>{formatDate(accountInfo.lastUpdateTime)}</Text>
-                  </Flex>
-                  
-                  <Text mb={2}>Progress toward goal:</Text>
-                  <Progress 
-                    value={calculateProgress()} 
-                    colorScheme="green" 
-                    size="lg" 
-                    borderRadius="md"
-                    mb={2}
+        {/* Premium Verification Section */}
+        {!isPremiumUser && (
+          <Box>
+            <FormControl>
+              <FormLabel>Transaction Hash for Premium Verification</FormLabel>
+              <Flex gap={2}>
+                <NumberInput flex={1}>
+                  <NumberInputField
+                    value={txHash}
+                    onChange={(e) => setTxHash(e.target.value)}
+                    placeholder="Enter transaction hash"
                   />
-                  <Text fontSize="sm" textAlign="right" mb={4}>
-                    {calculateProgress()}% complete
-                  </Text>
-                  
-                  <Divider my={4} />
-                  
-                  <Flex gap={4} align="flex-start">
-                    <Box flex={1}>
-                      <Heading size="xs" mb={2}>Make a Deposit</Heading>
-                      <FormControl id="depositAmount" mb={2}>
-                        <NumberInput min={0} precision={4} size="sm">
-                          <NumberInputField
-                            value={depositAmount}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDepositAmount(e.target.value)}
-                            placeholder="Amount in ETH"
-                          />
-                        </NumberInput>
-                      </FormControl>
-                      <Button
-                        size="sm"
-                        colorScheme="blue"
-                        onClick={deposit}
-                        isLoading={isDepositing}
-                        loadingText="Depositing..."
-                        isDisabled={!depositAmount || parseFloat(depositAmount) <= 0}
-                        width="full"
-                      >
-                        Deposit
-                      </Button>
-                    </Box>
-                    
-                    <Box flex={1}>
-                      <Heading size="xs" mb={2}>Withdraw Funds</Heading>
-                      <FormControl id="withdrawAmount" mb={2}>
-                        <NumberInput min={0} max={parseFloat(formatEther(accountInfo.balance))} precision={4} size="sm">
-                          <NumberInputField
-                            value={withdrawAmount}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWithdrawAmount(e.target.value)}
-                            placeholder="Amount in ETH"
-                          />
-                        </NumberInput>
-                      </FormControl>
-                      <Button
-                        size="sm"
-                        colorScheme="orange"
-                        onClick={withdraw}
-                        isLoading={isWithdrawing}
-                        loadingText="Withdrawing..."
-                        isDisabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || parseFloat(withdrawAmount) > parseFloat(formatEther(accountInfo.balance))}
-                        width="full"
-                      >
-                        Withdraw
-                      </Button>
-                    </Box>
-                  </Flex>
-                </Box>
-                
-                {calculateProgress() >= 100 && (
-                  <Alert status="success" mt={4}>
-                    <AlertIcon />
-                    <AlertDescription>
-                      Congratulations! You've reached your Hajj savings goal.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </>
-            )}
-          </>
+                </NumberInput>
+                <Button 
+                  onClick={() => setTxHash(brevisService.getSampleTransactionHash())}
+                >
+                  Sample
+                </Button>
+              </Flex>
+            </FormControl>
+            <Button 
+              mt={2} 
+              colorScheme="blue" 
+              onClick={verifyPremiumStatus}
+              isLoading={isVerifying}
+              width="full"
+            >
+              Verify Premium Status
+            </Button>
+          </Box>
+        )}
+
+        {/* Account Creation Section */}
+        {isPremiumUser && !accountInfo?.isActive && (
+          <Box>
+            <FormControl>
+              <FormLabel>Hajj Savings Goal (ETH)</FormLabel>
+              <NumberInput min={0} precision={4}>
+                <NumberInputField
+                  value={goalAmount}
+                  onChange={(e) => setGoalAmount(e.target.value)}
+                  placeholder="Enter your Hajj savings goal"
+                />
+              </NumberInput>
+            </FormControl>
+            <Flex mt={2} gap={2}>
+              <Button 
+                flex={1}
+                colorScheme="green" 
+                onClick={createAccount}
+                isLoading={isCreating}
+              >
+                Create Account (Real)
+              </Button>
+              <Button 
+                flex={1}
+                colorScheme="purple" 
+                onClick={mockCreateAccount}
+                isLoading={isCreating}
+              >
+                Mock Create
+              </Button>
+            </Flex>
+          </Box>
+        )}
+
+        {/* Active Account Section */}
+        {accountInfo?.isActive && (
+          <Box>
+            <Flex justify="space-between" mb={2}>
+              <Text>Goal:</Text>
+              <Text fontWeight="bold">{formatEther(accountInfo.goal)} ETH</Text>
+            </Flex>
+            <Flex justify="space-between" mb={2}>
+              <Text>Current Balance:</Text>
+              <Text fontWeight="bold">{formatEther(accountInfo.balance)} ETH</Text>
+            </Flex>
+            
+            <Progress 
+              value={calculateProgress()} 
+              colorScheme="green" 
+              size="lg" 
+              borderRadius="md"
+              mb={2}
+            />
+            
+            <FormControl mt={4}>
+              <FormLabel>Deposit Amount (ETH)</FormLabel>
+              <NumberInput min={0} precision={4}>
+                <NumberInputField
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  placeholder="Enter deposit amount"
+                />
+              </NumberInput>
+            </FormControl>
+            
+            <Flex mt={2} gap={2}>
+              <Button 
+                flex={1}
+                colorScheme="blue" 
+                onClick={deposit}
+                isLoading={isDepositing}
+              >
+                Deposit (Real)
+              </Button>
+              <Button 
+                flex={1}
+                colorScheme="purple" 
+                onClick={mockDeposit}
+                isLoading={isDepositing}
+              >
+                Mock Deposit
+              </Button>
+            </Flex>
+          </Box>
         )}
       </Flex>
     </Box>

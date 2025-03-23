@@ -1,177 +1,194 @@
-# MoonFi Platform
+# MuslimGo: Shariah-Compliant Financial Platform
 
-A blockchain-based platform designed specifically for Muslims to fulfill religious financial obligations through Shariah-compliant mechanisms. MuslimGo leverages zero-knowledge proofs via Brevis to enable secure, transparent, and interest-free financial services for Zakat payment and Hajj savings.
+## Overview
+
+MuslimGo is an innovative blockchain-based platform designed to help Muslims fulfill their religious financial obligations through secure, transparent, and interest-free mechanisms.
+
+## Architecture Diagram
+
+```mermaid
+graph TD
+    A[User Interface] --> B[Web3 Context]
+    B --> C[Smart Contracts]
+    B --> D[Brevis Prover Services]
+    
+    subgraph Smart Contracts
+        C1[MuslimGoZakat.sol]
+        C2[MuslimGoHajj.sol]
+    end
+
+    subgraph Prover Services
+        D1[Zakat Prover]
+        D2[Premium Prover]
+    end
+
+    D1 --> E[Zero-Knowledge Proof Generation]
+    D2 --> E
+    
+    C --> F[Blockchain Network]
+    E --> F
+```
 
 ## Core Components
 
 ### 1. Zakat Management System
-- Automated calculation of the 2.5% obligation based on verifiable asset holdings
-- Transparent distribution to approved charitable organizations
-- Complete audit trail of donations while maintaining donor privacy
-- Basic service available to all users
+- Automated 2.5% Zakat calculation
+- Verifiable asset holdings
+- Transparent charitable distribution
+- Privacy-preserving donation tracking
 
-### 2. Hajj Preparation Program
-- Premium tier feature with enhanced services
-- Zero-knowledge proof verification for premium user status
-- Shariah-compliant fund management for Hajj savings
-- Smart-contract managed funds with programmatic release upon goal achievement
+### 2. Hajj Savings Program
+- Premium tier feature
+- Zero-knowledge proof verification
+- Goal-based savings management
+- Smart contract fund tracking
 
-### Verified Contract
-Hajj contract
-https://sepolia.etherscan.io/address/0x0e2aebe3e835d93dfb8bf3cf69a41c88f10368e7
+## Technical Stack
 
-Zakat contract
-https://sepolia.etherscan.io/address/0xe41279a05f3eec58acdb7df13de3148db912dfd5
+### Frontend
+- React (Vite)
+- TypeScript
+- Chakra UI
+- Ethers.js
+- Web3 Context
 
-## Technical Architecture
+### Backend
+- Go-based Prover Services
+- Node.js Proof Generation API
+- Brevis Zero-Knowledge Proof SDK
 
-The platform consists of three main components:
+### Blockchain
+- Solidity Smart Contracts
+- Sepolia Testnet
+- OpenZeppelin Libraries
 
-### Smart Contracts
-- `MuslimGoZakat.sol`: Handles verification of assets, calculation of Zakat (2.5%), and distribution to charities
-- `MuslimGoHajj.sol`: Manages premium user verification, savings accounts with goals, and fund tracking
+## Zero-Knowledge Proof Workflow
 
-### Zero-Knowledge Proof Infrastructure
-- **Zakat Prover**: Verifies user assets without exposing actual values
-- **Premium Prover**: Confirms premium status for Hajj services
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant P as Prover Service
+    participant B as Brevis Network
+    participant SC as Smart Contract
 
-### Application Layer
-- Node.js application for generating proofs and interacting with Brevis backend
-- Integration with blockchain for smart contract interactions
+    U->>F: Initiate Verification
+    F->>P: Send Transaction Hash
+    P->>P: Generate Zero-Knowledge Proof
+    P->>B: Submit Proof
+    B->>SC: Verify Proof
+    SC->>U: Update User Status
+```
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js LTS (v16+)
+- Node.js 16+
 - Go 1.20+
-- Windows or Linux OS
+- MetaMask Wallet
+- Sepolia Testnet ETH
 
 ### Installation
 
-#### 1. Clone Repository
+1. Clone the Repository
 ```bash
-git clone https://github.com/your-repo/muslimgo.git
+git clone https://github.com/your-org/muslimgo.git
 cd muslimgo
 ```
 
-#### 2. Set Up Provers
-
-**For Windows:**
-```powershell
-# Create required directories
-mkdir -Force "$env:USERPROFILE\circuitOut\zakat"
-mkdir -Force "$env:USERPROFILE\circuitOut\premium"
-mkdir -Force "$env:USERPROFILE\kzgsrs"
-
-# Download SRS file
-$url = "https://kzg-srs.s3.us-west-2.amazonaws.com/kzg_srs_100800000_bn254_MAIN_IGNITION"
-$output = "$env:USERPROFILE\kzgsrs\kzg_srs_100800000_bn254_MAIN_IGNITION"
-Invoke-WebRequest -Uri $url -OutFile $output
-
-# Build the provers
-cd brevis/prover
-go build -o "$env:USERPROFILE\go\bin\zakat_prover.exe" ./cmd/zakat_prover.go
-go build -o "$env:USERPROFILE\go\bin\premium_prover.exe" ./cmd/premium_prover.go
+2. Setup Frontend
+```bash
+cd muslim-go-frontend
+npm install
+npm run dev
 ```
 
-**For Linux:**
+3. Setup Prover Services
 ```bash
 cd brevis/prover
 make install
-make config
-make deploy
-```
-
-#### 3. Set Up Contracts
-```bash
-cd brevis/contracts
-npm install
-```
-
-#### 4. Set Up Application
-```bash
-cd brevis/app
-npm install
-```
-
-### Running the Platform
-
-#### 1. Start Provers
-
-**For Windows:**
-```powershell
-# In first PowerShell window
-& "$env:USERPROFILE\go\bin\zakat_prover.exe" -port=33247
-
-# In second PowerShell window
-& "$env:USERPROFILE\go\bin\premium_prover.exe" -port=33248
-```
-
-**For Linux:**
-```bash
-# Start provers in background
 make start
 ```
 
-#### 2. Run Tests
+### Running Prover Services
+
+#### Zakat Prover
 ```bash
-cd brevis/app
-npx ts-node src/test-zakat.ts
-npx ts-node src/test-premium.ts
+# Windows
+& "$env:USERPROFILE\go\bin\zakat_prover.exe" -port=33247
+
+# Linux/Mac
+./zakat_prover -port=33247
 ```
 
-#### 3. Deploy Contracts (to Sepolia testnet)
+#### Premium Prover
 ```bash
-cd brevis/contracts
-npx hardhat deploy --network sepolia --tags MuslimGoZakat
-npx hardhat deploy --network sepolia --tags MuslimGoHajj
+# Windows
+& "$env:USERPROFILE\go\bin\premium_prover.exe" -port=33248
+
+# Linux/Mac
+./premium_prover -port=33248
 ```
 
-## Islamic Finance Compliance Features
+## Smart Contracts
 
-The MuslimGo platform implements several design choices specifically aligned with Islamic financial principles:
+### Zakat Contract
+- Address: `0xe41279a05f3eec58acdb7df13de3148db912dfd5`
+- Network: Sepolia Testnet
+- Features:
+  - Asset verification
+  - Zakat calculation
+  - Charitable distribution
 
-1. **Interest-Free Design**: No riba (interest) mechanisms in the savings accounts
-2. **Asset Verification**: Ensures accurate Zakat calculation without exposing financial details
-3. **Transparent Distribution**: Clear tracking of charitable distributions
-4. **Goal-Based Savings**: Focus on purpose-driven financial planning for Hajj
+### Hajj Savings Contract
+- Address: `0x0e2aebe3e835d93dfb8bf3cf69a41c88f10368e7`
+- Network: Sepolia Testnet
+- Features:
+  - Premium user verification
+  - Savings goal tracking
+  - Fund management
 
-## Technical Features
+## Islamic Finance Principles
 
-- **Privacy with Accountability**: Zero-knowledge proofs allow for verification without revealing sensitive data
-- **Scalable Architecture**: Separate prover services for different functions allow independent scaling
-- **Security-Focused**: Uses OpenZeppelin contracts and proper access controls
-- **Well-Structured Code**: Clean separation of concerns in both contracts and prover logic
+1. **No Riba (Interest)**
+   - Completely interest-free financial mechanisms
+   - Purpose-driven savings and contributions
 
-## File Structure
+2. **Transparency**
+   - Clear tracking of all financial transactions
+   - Zero-knowledge proofs maintain privacy
 
-```
-brevis/
-├── app/                  # Application code
-│   ├── src/              # Source code
-│   │   ├── index.ts      # Main application
-│   │   └── test-*.ts     # Test scripts
-├── contracts/            # Smart contracts
-│   ├── contracts/        # Contract source code
-│   │   ├── MuslimGoZakat.sol
-│   │   ├── MuslimGoHajj.sol
-│   │   └── lib/          # Contract libraries
-├── prover/               # Prover service
-│   ├── circuits/         # ZK circuit definitions
-│   │   ├── zakat_circuit.go
-│   │   └── premium_circuit.go
-│   ├── cmd/              # Command-line tools
-│   │   ├── zakat_prover.go
-│   │   └── premium_prover.go
-│   └── configs/          # Service configurations
-```
+3. **Charitable Intent**
+   - Automated Zakat calculation
+   - Direct charitable distribution
+   - Verified contribution tracking
 
 ## Development Roadmap
 
-1. **MVP Release** - Core Zakat and Hajj functionality with basic UI
-2. **Beta Release** - Enhanced features, improved UI, and community testing
-3. **Public Launch** - Full platform with additional Shariah-compliant products
+- [x] MVP Development
+- [ ] Enhanced UI/UX
+- [ ] Multi-Chain Support
+- [ ] Advanced Shariah Compliance Features
+
+## Security
+
+- Zero-Knowledge Proof Verification
+- OpenZeppelin Access Controls
+- Minimal Data Exposure
+- Blockchain-Based Transparency
+
+## Contributing
+
+1. Fork the Repository
+2. Create Feature Branch
+3. Commit Changes
+4. Push to Branch
+5. Open Pull Request
 
 ## License
 
-[MIT License](LICENSE)
+MIT License
+
+## Disclaimer
+
+MuslimGo is a technological solution and should not replace consultation with religious scholars for precise Zakat and financial guidance.
