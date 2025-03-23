@@ -1,89 +1,177 @@
-# Brevis Quickstart Typescript
+# MoonFi Platform
 
-This repo contains a simple end-to-end brevis application
-that proves circle USDC token transfer and handles the attested account and volume in an app contract.
+A blockchain-based platform designed specifically for Muslims to fulfill religious financial obligations through Shariah-compliant mechanisms. MuslimGo leverages zero-knowledge proofs via Brevis to enable secure, transparent, and interest-free financial services for Zakat payment and Hajj savings.
 
-## Environment Requirements
+## Core Components
 
-- Go >= 1.20
-- Node.js LTS
+### 1. Zakat Management System
+- Automated calculation of the 2.5% obligation based on verifiable asset holdings
+- Transparent distribution to approved charitable organizations
+- Complete audit trail of donations while maintaining donor privacy
+- Basic service available to all users
 
-## [Prover](./prover)
+### 2. Hajj Preparation Program
+- Premium tier feature with enhanced services
+- Zero-knowledge proof verification for premium user status
+- Shariah-compliant fund management for Hajj savings
+- Smart-contract managed funds with programmatic release upon goal achievement
 
-The prover service is a standalone process that is run on a server, preferably as a systemd managed process so that it can be auto restarted if any crash happens. The prover service is designed to be used in conjunction with [brevis-network/brevis-sdk-typescript](https://github.com/brevis-network/brevis-sdk-typescript). 
+### Verified Contract
+Hajj contract
+https://sepolia.etherscan.io/address/0x0e2aebe3e835d93dfb8bf3cf69a41c88f10368e7
 
-### Start Prover (for testing)
+Zakat contract
+https://sepolia.etherscan.io/address/0xe41279a05f3eec58acdb7df13de3148db912dfd5
 
+## Technical Architecture
+
+The platform consists of three main components:
+
+### Smart Contracts
+- `MuslimGoZakat.sol`: Handles verification of assets, calculation of Zakat (2.5%), and distribution to charities
+- `MuslimGoHajj.sol`: Manages premium user verification, savings accounts with goals, and fund tracking
+
+### Zero-Knowledge Proof Infrastructure
+- **Zakat Prover**: Verifies user assets without exposing actual values
+- **Premium Prover**: Confirms premium status for Hajj services
+
+### Application Layer
+- Node.js application for generating proofs and interacting with Brevis backend
+- Integration with blockchain for smart contract interactions
+
+## Getting Started
+
+### Prerequisites
+- Node.js LTS (v16+)
+- Go 1.20+
+- Windows or Linux OS
+
+### Installation
+
+#### 1. Clone Repository
 ```bash
-cd prover
-make start
+git clone https://github.com/your-repo/muslimgo.git
+cd muslimgo
 ```
 
-### Start Prover with Systemd (in production on linux server)
+#### 2. Set Up Provers
 
-You may want to have a process daemon to manage the prover services in production. The [Makefile](prover/Makefileefile) in the project root contains some convenience scripts. 
+**For Windows:**
+```powershell
+# Create required directories
+mkdir -Force "$env:USERPROFILE\circuitOut\zakat"
+mkdir -Force "$env:USERPROFILE\circuitOut\premium"
+mkdir -Force "$env:USERPROFILE\kzgsrs"
 
-To build, init systemd, and start both prover processes, run the following command. Note it requires sudo privilege because we want to use systemd commands
+# Download SRS file
+$url = "https://kzg-srs.s3.us-west-2.amazonaws.com/kzg_srs_100800000_bn254_MAIN_IGNITION"
+$output = "$env:USERPROFILE\kzgsrs\kzg_srs_100800000_bn254_MAIN_IGNITION"
+Invoke-WebRequest -Uri $url -OutFile $output
 
+# Build the provers
+cd brevis/prover
+go build -o "$env:USERPROFILE\go\bin\zakat_prover.exe" ./cmd/zakat_prover.go
+go build -o "$env:USERPROFILE\go\bin\premium_prover.exe" ./cmd/premium_prover.go
+```
+
+**For Linux:**
 ```bash
-cd prover
+cd brevis/prover
+make install
+make config
 make deploy
 ```
 
-# [App](./app)
-
-The Node.js project in ./app is a simple program that does the following things:
-
-1. call the Go prover with some transaction data to generate token transfer volume proof
-2. call Brevis backend service and submit the token transfer volume proof
-3. wait until the final proof is submitted on-chain and our contract is called
-
-## How to Run
-
+#### 3. Set Up Contracts
 ```bash
-cd app
-npm run start [TransactionHash]
-```
-Example for Normal Flow
-```bash
-npm run start 0x8a7fc50330533cd0adbf71e1cfb51b1b6bbe2170b4ce65c02678cf08c8b17737
-```
-
-Example for Brevis Partner Flow
-```bash
-npm run start 0x8a7fc50330533cd0adbf71e1cfb51b1b6bbe2170b4ce65c02678cf08c8b17737 TestVolume 0x9fc16c4918a4d69d885f2ea792048f13782a522d
-```
->[!NOTE]
->Brevis partner key **IS NOT** required to submit request to Brevis Gateway
-
-# [Contracts](./contracts)
-
-The app contract [TokenTransferZkOnly.sol](./contracts/contracts/TokenTransferZkOnly.sol) is called
-after you submit proof is submitted to Brevis when Brevis'
-systems submit the final proof on-chain.
-It does the following things when handling the callback:
-
-1. checks the proof was associated with the correct vk hash
-2. decodes the circuit output
-3. emit a simple event
-
-## Init
-
-```bash
-cd contracts
+cd brevis/contracts
 npm install
 ```
 
-## Test
-
+#### 4. Set Up Application
 ```bash
-npm run test
+cd brevis/app
+npm install
 ```
 
-## Deploy
+### Running the Platform
 
-Rename `.env.template` to `.env`. Fill in the required env vars.
+#### 1. Start Provers
 
-```bash
-npx hardhat deploy --network sepolia --tags TokenTransferZkOnly
+**For Windows:**
+```powershell
+# In first PowerShell window
+& "$env:USERPROFILE\go\bin\zakat_prover.exe" -port=33247
+
+# In second PowerShell window
+& "$env:USERPROFILE\go\bin\premium_prover.exe" -port=33248
 ```
+
+**For Linux:**
+```bash
+# Start provers in background
+make start
+```
+
+#### 2. Run Tests
+```bash
+cd brevis/app
+npx ts-node src/test-zakat.ts
+npx ts-node src/test-premium.ts
+```
+
+#### 3. Deploy Contracts (to Sepolia testnet)
+```bash
+cd brevis/contracts
+npx hardhat deploy --network sepolia --tags MuslimGoZakat
+npx hardhat deploy --network sepolia --tags MuslimGoHajj
+```
+
+## Islamic Finance Compliance Features
+
+The MuslimGo platform implements several design choices specifically aligned with Islamic financial principles:
+
+1. **Interest-Free Design**: No riba (interest) mechanisms in the savings accounts
+2. **Asset Verification**: Ensures accurate Zakat calculation without exposing financial details
+3. **Transparent Distribution**: Clear tracking of charitable distributions
+4. **Goal-Based Savings**: Focus on purpose-driven financial planning for Hajj
+
+## Technical Features
+
+- **Privacy with Accountability**: Zero-knowledge proofs allow for verification without revealing sensitive data
+- **Scalable Architecture**: Separate prover services for different functions allow independent scaling
+- **Security-Focused**: Uses OpenZeppelin contracts and proper access controls
+- **Well-Structured Code**: Clean separation of concerns in both contracts and prover logic
+
+## File Structure
+
+```
+brevis/
+├── app/                  # Application code
+│   ├── src/              # Source code
+│   │   ├── index.ts      # Main application
+│   │   └── test-*.ts     # Test scripts
+├── contracts/            # Smart contracts
+│   ├── contracts/        # Contract source code
+│   │   ├── MuslimGoZakat.sol
+│   │   ├── MuslimGoHajj.sol
+│   │   └── lib/          # Contract libraries
+├── prover/               # Prover service
+│   ├── circuits/         # ZK circuit definitions
+│   │   ├── zakat_circuit.go
+│   │   └── premium_circuit.go
+│   ├── cmd/              # Command-line tools
+│   │   ├── zakat_prover.go
+│   │   └── premium_prover.go
+│   └── configs/          # Service configurations
+```
+
+## Development Roadmap
+
+1. **MVP Release** - Core Zakat and Hajj functionality with basic UI
+2. **Beta Release** - Enhanced features, improved UI, and community testing
+3. **Public Launch** - Full platform with additional Shariah-compliant products
+
+## License
+
+[MIT License](LICENSE)

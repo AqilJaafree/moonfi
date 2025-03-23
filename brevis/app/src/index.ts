@@ -53,16 +53,23 @@ async function main() {
     }
     console.log('Proof generated successfully');
 
-    try {
-        // For Sepolia testnet (chain ID 11155111)
-        const brevisRes = await brevis.submit(proofReq, proofRes, 1, 11155111, 0);
-        console.log('Proof submitted to Brevis network:', brevisRes);
+// Update the brevis.submit() call in your index.ts file
+try {
+    // For Sepolia testnet (chain ID 11155111)
+    const brevisRes = await brevis.submit(
+        proofReq,           // request
+        proofRes,           // proof
+        1,                  // srcChainId
+        11155111,           // dstChainId
+        0,                  // option
+        "",                 // apiKey - you might need to get one from Brevis
+        ""                  // callbackAddress - optional callback contract address
+    );
+    console.log('Proof submitted to Brevis network:', brevisRes);
 
-        await brevis.wait(brevisRes.queryKey, 11155111);
-        console.log(`${mode.charAt(0).toUpperCase() + mode.slice(1)} verification completed successfully!`);
-    } catch (err) {
-        console.error('Error submitting proof:', err);
-    }
+    await brevis.wait(brevisRes.queryKey, 11155111);
+    console.log(`${mode.charAt(0).toUpperCase() + mode.slice(1)} verification completed successfully!`);
+} catch (err) {
+    console.error('Error submitting proof:', err);
 }
-
-main().catch(console.error);
+main().catch(console.error);}

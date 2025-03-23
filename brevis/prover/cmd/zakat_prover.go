@@ -15,8 +15,10 @@ func main() {
 	flag.Parse()
 
 	proverService, err := prover.NewService(&circuits.ZakatCircuit{}, prover.ServiceConfig{
-		SetupDir: "$HOME/circuitOut/zakat",
-		SrsDir:   "$HOME/kzgsrs",
+		// SetupDir: "$HOME/circuitOut/zakat",
+		// SrsDir:   "$HOME/kzgsrs",
+		SetupDir: os.ExpandEnv("${USERPROFILE}\\circuitOut\\zakat"),
+		SrsDir:   os.ExpandEnv("${USERPROFILE}\\kzgsrs"),
 		RpcURL:   "https://eth.llamarpc.com",
 		ChainId:  1,
 	})
