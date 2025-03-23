@@ -1,108 +1,179 @@
-import { Brevis, ProofRequest, Prover, ReceiptData, Field } from 'brevis-sdk-typescript';
-import { ethers } from 'ethers';
+import axios from 'axios';
 
-// Create a class to handle Brevis interactions
+// Make sure these match the ports where your API server is running
+const API_SERVER_URL = 'http://localhost:3001';
+
 export class BrevisService {
-  private zakatProver: Prover;
-  private premiumProver: Prover;
-  private brevis: Brevis;
-
-  constructor() {
-    // Connect to provers
-    this.zakatProver = new Prover('localhost:33247');
-    this.premiumProver = new Prover('localhost:33248');
-    this.brevis = new Brevis('appsdkv3.brevis.network:443');
+  /**
+   * Generate a proof for Zakat verification and submit it to Brevis network
+   * 
+   * @param txHash The transaction hash containing the asset information
+   * @param userAddress The user's address to be used for callbacks
+   * @returns The proof response with verification status
+   */
+  async generateZakatProof(txHash: string, userAddress?: string) {
+    console.log(`Generating Zakat proof for transaction ${txHash}`);
+    
+    try {
+      // First, check if the server is available
+      const statusResponse = await axios.get(`${API_SERVER_URL}/status`);
+      if (statusResponse.status !== 200) {
+        throw new Error(`API server is not available`);
+      }
+      
+      // Send the request to generate and submit proof
+      const response = await axios.post(`${API_SERVER_URL}/api/generate-proof/zakat`, {
+        txHash: txHash,
+        userAddress: userAddress
+      });
+      
+      if (response.status !== 200 || !response.data.success) {
+        throw new Error(`Proof verification failed: ${JSON.stringify(response.data)}`);
+      }
+      
+      console.log(`Zakat proof generated successfully:`, response.data);
+      
+      return {
+        success: true,
+        proofData: response.data.proofData,
+        queryKey: response.data.proofData?.queryKey,
+        vkHash: response.data.proofData?.vkHash,
+        verified: response.data.proofData?.verified,
+        message: `Zakat verification successful`
+      };
+    } catch (error: any) {
+      console.error(`Error generating Zakat proof:`, error);
+      return {
+        success: false,
+        error: error.message || `Failed to generate Zakat proof`
+      };
+    }
   }
 
   /**
-   * Generate a proof for asset verification
+   * Generate a proof for Premium verification and submit it to Brevis network
    * 
-   * @param txHash The transaction hash containing the asset information
-   * @param isZakat Whether this is for Zakat (true) or Premium (false)
-   * @returns The proof response
+   * @param txHash The transaction hash containing the premium status
+   * @param userAddress The user's address to be used for callbacks
+   * @returns The proof response with verification status
    */
-  async generateProof(txHash: string, isZakat: boolean = true) {
-    const prover = isZakat ? this.zakatProver : this.premiumProver;
-    const modeName = isZakat ? 'Zakat' : 'Premium';
+  async generatePremiumProof(txHash: string, userAddress?: string) {
+    console.log(`Generating Premium proof for transaction ${txHash}`);
     
-    console.log(`Generating ${modeName} proof for transaction ${txHash}`);
-    
-    // Create proof request (same structure for both Zakat and Premium as per your test files)
-    const proofReq = new ProofRequest();
-    proofReq.addReceipt(
-      new ReceiptData({
-        tx_hash: txHash,
-        fields: [
-          new Field({
-            log_pos: 0, 
-            is_topic: true,
-            field_index: 1, // User address from topic
-          }),
-          new Field({
-            log_pos: 0,
-            is_topic: false,
-            field_index: 0, // Asset value or premium status
-          }),
-        ],
-      }),
-    );
-
-    // Generate proof
     try {
-      console.log(`Sending proof request to the ${modeName} prover...`);
-      const proofRes = await prover.prove(proofReq);
-      
-      if (proofRes.has_err) {
-        const err = proofRes.err;
-        console.error(`Error ${err.code}: ${err.msg}`);
-        throw new Error(`Proof generation failed: ${err.msg}`);
+      // First, check if the server is available
+      const statusResponse = await axios.get(`${API_SERVER_URL}/status`);
+      if (statusResponse.status !== 200) {
+        throw new Error(`API server is not available`);
       }
       
-      console.log(`${modeName} proof generated successfully`);
+      // Send the request to generate and submit proof
+      const response = await axios.post(`${API_SERVER_URL}/api/generate-proof/premium`, {
+        txHash: txHash,
+        userAddress: userAddress
+      });
       
-      // Submit proof to Brevis network
+      if (response.status !== 200 || !response.data.success) {
+        throw new Error(`Proof verification failed: ${JSON.stringify(response.data)}`);
+      }
+      
+      console.log(`Premium proof generated successfully:`, response.data);
+      
+      return {
+        success: true,
+        proofData: response.data.proofData,
+        queryKey: response.data.proofData?.queryKey,
+        vkHash: response.data.proofData?.vkHash,
+        verified: response.data.proofData?.verified,
+        message: `Premium verification successful`
+      };
+    } catch (error: any) {
+      console.error(`Error generating Premium proof:`, error);
+      return {
+        success: false,
+        error: error.message || `Failed to generate Premium proof`
+      };
+    }
+  }
+
+  /**
+   * Check if a proof has been verified on the Brevis network
+   * 
+   * @param queryKey The query key returned from the proof generation
+   * @returns Status of the proof verification
+   */
+  async checkProofStatus(queryKey: string) {
+    if (!queryKey) {
+      return {
+        success: false,
+        error: 'Query key is required'
+      };
+    }
+    
+    try {
+      const response = await axios.get(`${API_SERVER_URL}/api/check-proof/${queryKey}`);
+      
+      if (response.status !== 200 || !response.data.success) {
+        throw new Error(`Failed to check proof status: ${JSON.stringify(response.data)}`);
+      }
+      
+      return {
+        success: true,
+        status: response.data.status,
+        verified: response.data.verified
+      };
+    } catch (error: any) {
+      console.error('Error checking proof status:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to check proof status'
+      };
+    }
+  }
+
+  /**
+   * Verify if the API server and prover services are available
+   */
+  async checkProverServices() {
+    try {
+      // First check if the API server is running
       try {
-        // For Sepolia testnet (chain ID 11155111)
-        const brevisRes = await this.brevis.submit(
-          proofReq,           // request
-          proofRes,           // proof
-          1,                  // srcChainId (mainnet since the tx is from there)
-          11155111,           // dstChainId (Sepolia)
-          0,                  // option
-          "",                 // apiKey (empty string as per your example)
-          ""                  // callbackAddress (empty string as per your example)
-        );
-        
-        console.log('Proof submitted to Brevis network:', brevisRes);
-        
-        // Wait for verification to complete
-        await this.brevis.wait(brevisRes.queryKey, 11155111);
-        console.log(`${modeName} verification completed successfully!`);
-        
+        await axios.get(`${API_SERVER_URL}/status`);
+      } catch (error) {
+        console.error('API server not available:', error);
         return {
-          success: true,
-          queryKey: brevisRes.queryKey,
-          vkHash: (proofRes as any).vkHash || (proofRes as any).vk_hash,
-          proof: (proofRes as any).proof
+          zakatService: false,
+          premiumService: false,
+          error: 'API server is not running. Please start the server on port 3001.'
         };
-      } catch (err: any) {
-        console.error('Error submitting proof to Brevis network:', err);
-        throw new Error(`Error submitting proof: ${err.message || 'Unknown error'}`);
       }
+      
+      // Now check individual prover services through the API
+      const [zakatStatus, premiumStatus] = await Promise.allSettled([
+        axios.get(`${API_SERVER_URL}/zakat/status`),
+        axios.get(`${API_SERVER_URL}/premium/status`)
+      ]);
+      
+      return {
+        zakatService: zakatStatus.status === 'fulfilled' && zakatStatus.value.status === 200,
+        premiumService: premiumStatus.status === 'fulfilled' && premiumStatus.value.status === 200
+      };
     } catch (error) {
-      console.error('Error during proof generation:', error);
-      throw error;
+      console.error('Error checking prover services:', error);
+      return {
+        zakatService: false,
+        premiumService: false,
+        error: (error as any).message || 'Failed to connect to prover services'
+      };
     }
   }
 
   /**
    * Helper function to get a sample transaction hash
-   * This is just for testing purposes
-   * 
-   * @returns A sample transaction hash
+   * This is for testing purposes
    */
   getSampleTransactionHash(): string {
-    // This is the sample hash used in your test files
+    // This is the sample hash used in the Brevis examples
     return '0x8a7fc50330533cd0adbf71e1cfb51b1b6bbe2170b4ce65c02678cf08c8b17737';
   }
 }

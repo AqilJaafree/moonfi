@@ -21,15 +21,13 @@ import {
   AlertDescription,
   Code,
   Input,
-  Link
+  Spinner,
+  Progress
 } from '@chakra-ui/react';
-import axios from 'axios';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../../contexts/Web3Context';
 import { getZakatContract, parseEther, formatEther } from '../../utils/contracts';
-
-// API server endpoint
-const API_URL = 'http://localhost:3001';
+import { brevisService } from '../../utils/brevisService';
 
 const ZakatCalculator: React.FC = () => {
   const { account, provider, isCorrectNetwork } = useWeb3();
@@ -42,79 +40,60 @@ const ZakatCalculator: React.FC = () => {
   const [contributions, setContributions] = useState<string>('0');
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string>('');
-  const [apiStatus, setApiStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
+  const [proversStatus, setProversStatus] = useState<{zakatService: boolean, premiumService: boolean}>({
+    zakatService: false,
+    premiumService: false
+  });
+  const [isCheckingProvers, setIsCheckingProvers] = useState(true);
   const [proofResponse, setProofResponse] = useState<any>(null);
+  const [verificationProgress, setVerificationProgress] = useState(0);
+  const [isCheckingProofStatus, setIsCheckingProofStatus] = useState(false);
+  const [isProofVerified, setIsProofVerified] = useState(false);
   const toast = useToast();
   
   const bgColor = useColorModeValue('white', 'gray.700');
   const nisabValue = ethers.utils.parseEther('3.0'); // Approximate Nisab value in ETH
 
-  // Check API server availability
+  // Check prover services availability
   useEffect(() => {
-    const checkApiStatus = async () => {
+    const checkProvers = async () => {
+      setIsCheckingProvers(true);
       try {
-        const response = await axios.get(`${API_URL}/status`);
-        if (response.status === 200) {
-          setApiStatus('available');
-        } else {
-          setApiStatus('unavailable');
-        }
+        const status = await brevisService.checkProverServices();
+        setProversStatus(status);
       } catch (error) {
-        console.error('API server not available:', error);
-        setApiStatus('unavailable');
+        console.error('Failed to check prover services:', error);
+        setProversStatus({ zakatService: false, premiumService: false });
+      } finally {
+        setIsCheckingProvers(false);
       }
     };
     
-    checkApiStatus();
+    checkProvers();
+    
+    // Check every 30 seconds
+    const interval = setInterval(checkProvers, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Handle transaction hash input change
   const handleTxHashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTxHash(e.target.value);
+    // Reset verification status when hash changes
+    setIsProofVerified(false);
+    setProofResponse(null);
   };
 
   // Fill with sample transaction hash
   const fillSampleTxHash = () => {
-    setTxHash('0x8a7fc50330533cd0adbf71e1cfb51b1b6bbe2170b4ce65c02678cf08c8b17737');
+    setTxHash(brevisService.getSampleTransactionHash());
+    // Reset verification status
+    setIsProofVerified(false);
+    setProofResponse(null);
   };
 
-  // Manually update verified assets (for development/testing)
-  const updateVerifiedAssets = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      toast({
-        title: 'Connection error',
-        description: 'Please connect your wallet to Sepolia network',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!assetValue || parseFloat(assetValue) <= 0) {
-      toast({
-        title: 'Invalid amount',
-        description: 'Please enter a valid asset value',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    // For demonstration purposes - directly update the UI state
-    setVerifiedAssets(assetValue);
-    
-    toast({
-      title: 'Assets updated (UI only)',
-      description: 'This is a UI update only. In a real implementation, the contract state would be updated.',
-      status: 'info',
-      duration: 5000,
-      isClosable: true,
-    });
-  };
-
-  // Verify assets with the Brevis API server
+  // Verify assets with the Brevis prover service and submit to Brevis network
   const verifyAssets = async () => {
     if (!provider || !account || !isCorrectNetwork) {
       toast({
@@ -138,10 +117,10 @@ const ZakatCalculator: React.FC = () => {
       return;
     }
 
-    if (apiStatus !== 'available') {
+    if (!proversStatus.zakatService) {
       toast({
-        title: 'API server unavailable',
-        description: 'The Brevis API server is not available. Please ensure it is running.',
+        title: 'Zakat prover unavailable',
+        description: 'The Zakat prover service is not available. Please ensure it is running.',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -152,6 +131,7 @@ const ZakatCalculator: React.FC = () => {
     setIsVerifying(true);
     setVerificationError(null);
     setProofResponse(null);
+    setVerificationProgress(10);
     
     try {
       toast({
@@ -162,37 +142,44 @@ const ZakatCalculator: React.FC = () => {
         isClosable: true,
       });
       
-      // Call the API server to generate a proof
-      const response = await axios.post(`${API_URL}/api/zakat/generate-proof`, {
-        txHash: txHash
-      });
+      // Call the prover service with the user's address for callbacks
+      const result = await brevisService.generateZakatProof(txHash, account);
       
-      if (response.data.success) {
-        // Store the proof response for debugging
-        setProofResponse(response.data);
+      if (result.success) {
+        setVerificationProgress(70);
+        // Store the proof response
+        setProofResponse(result);
         
         toast({
-          title: 'Proof generated',
-          description: 'Proof was successfully generated by the prover. For demonstration purposes, we will update your verified assets in the UI.',
+          title: 'Proof verified',
+          description: 'The proof was successfully generated and verified on the Brevis network.',
           status: 'success',
           duration: 5000,
           isClosable: true,
         });
         
-        // For demonstration purposes only - update the UI state
+        // Set proof as verified
+        setIsProofVerified(true);
+        setVerificationProgress(100);
+        
+        // For demonstration purposes only - update the UI state based on asset value
         if (assetValue && parseFloat(assetValue) > 0) {
           setVerifiedAssets(assetValue);
         }
+        
+        // Refresh user data from contract
+        await fetchUserData();
       } else {
-        throw new Error(response.data.error || 'Verification failed');
+        throw new Error(result.error || 'Verification failed');
       }
     } catch (error: any) {
       console.error('Verification error:', error);
-      setVerificationError(error.response?.data?.error || error.message || 'Unknown error');
+      setVerificationError(error.message || 'Unknown error');
+      setVerificationProgress(0);
       
       toast({
         title: 'Verification failed',
-        description: error.response?.data?.error || error.message || 'An error occurred during verification',
+        description: error.message || 'An error occurred during verification',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -271,12 +258,12 @@ const ZakatCalculator: React.FC = () => {
       return;
     }
 
-    if (parseFloat(verifiedAssets) <= 0) {
+    if (!isProofVerified || parseFloat(verifiedAssets) <= 0) {
       toast({
         title: 'Assets not verified',
-        description: 'You need to verify your assets before contributing Zakat',
+        description: 'You need to verify your assets with the Brevis network before contributing Zakat',
         status: 'warning',
-        duration: 3000,
+        duration: 4000,
         isClosable: true,
       });
       return;
@@ -373,11 +360,23 @@ const ZakatCalculator: React.FC = () => {
           </Alert>
         )}
 
-        {apiStatus === 'unavailable' && (
+        {isCheckingProvers ? (
+          <Flex justify="center" align="center" p={4}>
+            <Spinner size="sm" mr={2} />
+            <Text>Checking prover services...</Text>
+          </Flex>
+        ) : !proversStatus.zakatService ? (
           <Alert status="error">
             <AlertIcon />
             <AlertDescription>
-              The Brevis API server is not available. Please ensure it is running on {API_URL}.
+              The Zakat prover service is not available. Please ensure it is running on port 33257.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert status="success" variant="subtle">
+            <AlertIcon />
+            <AlertDescription>
+              Zakat prover service is online and ready to verify transactions.
             </AlertDescription>
           </Alert>
         )}
@@ -411,32 +410,21 @@ const ZakatCalculator: React.FC = () => {
               </NumberInput>
             </FormControl>
 
-            <Flex gap={2}>
-              <Button
-                colorScheme="blue"
-                onClick={calculateZakat}
-                isLoading={isCalculating}
-                loadingText="Calculating..."
-                isDisabled={!assetValue || parseFloat(assetValue) <= 0}
-                flex={1}
-              >
-                Calculate Zakat
-              </Button>
-              
-              <Button
-                colorScheme="purple"
-                onClick={updateVerifiedAssets}
-                isDisabled={!assetValue || parseFloat(assetValue) <= 0}
-                flex={1}
-              >
-                Update Assets (Demo)
-              </Button>
-            </Flex>
+            <Button
+              colorScheme="blue"
+              onClick={calculateZakat}
+              isLoading={isCalculating}
+              loadingText="Calculating..."
+              isDisabled={!assetValue || parseFloat(assetValue) <= 0}
+              width="full"
+            >
+              Calculate Zakat
+            </Button>
 
             <Divider />
 
             {/* Transaction Hash Input for Verification */}
-            <FormControl id="txHash">
+            <FormControl id="txHash" mb={4}>
               <FormLabel>Transaction Hash for Verification</FormLabel>
               <Flex gap={2}>
                 <Input
@@ -458,13 +446,28 @@ const ZakatCalculator: React.FC = () => {
               onClick={verifyAssets}
               isLoading={isVerifying}
               loadingText="Verifying..."
-              isDisabled={!txHash || apiStatus !== 'available'}
+              isDisabled={!txHash || !proversStatus.zakatService}
+              width="full"
+              mb={4}
             >
-              Verify Assets
+              Verify Assets with Brevis
             </Button>
             
+            {isVerifying && (
+              <Box mb={4}>
+                <Text fontSize="sm" mb={2}>Verification progress:</Text>
+                <Progress value={verificationProgress} colorScheme="teal" size="sm" borderRadius="md" />
+                <Text fontSize="xs" textAlign="right" mt={1}>
+                  {verificationProgress < 30 ? "Generating proof..." : 
+                   verificationProgress < 70 ? "Submitting to Brevis network..." : 
+                   verificationProgress < 100 ? "Waiting for on-chain verification..." : 
+                   "Verification complete!"}
+                </Text>
+              </Box>
+            )}
+            
             {verificationError && (
-              <Alert status="error">
+              <Alert status="error" mb={4}>
                 <AlertIcon />
                 <Flex direction="column">
                   <AlertDescription>Verification failed</AlertDescription>
@@ -473,16 +476,28 @@ const ZakatCalculator: React.FC = () => {
               </Alert>
             )}
             
-            {proofResponse && (
-              <Alert status="info" variant="subtle">
+            {isProofVerified && (
+              <Alert status="success" mb={4}>
+                <AlertIcon />
+                <Flex direction="column">
+                  <AlertDescription>Assets successfully verified on-chain</AlertDescription>
+                  <Text fontSize="sm" mt={2}>
+                    Your assets have been verified through the Brevis network and are now ready for Zakat contribution.
+                  </Text>
+                </Flex>
+              </Alert>
+            )}
+            
+            {proofResponse && !isProofVerified && (
+              <Alert status="info" variant="subtle" mb={4}>
                 <AlertIcon />
                 <Flex direction="column">
                   <AlertDescription fontWeight="bold">Proof Generated</AlertDescription>
                   <Text fontSize="sm" mt={2}>
-                    A proof was successfully generated. This proof would normally be submitted to the blockchain.
+                    A proof was generated, but on-chain verification is not yet complete.
                   </Text>
                   <Text fontSize="xs" mt={2}>
-                    Proof details: {JSON.stringify(proofResponse.proofData, null, 2)}
+                    Query key: {proofResponse.queryKey || "N/A"}
                   </Text>
                 </Flex>
               </Alert>
@@ -503,15 +518,15 @@ const ZakatCalculator: React.FC = () => {
                   isLoading={isContributing}
                   loadingText="Contributing..."
                   width="full"
-                  isDisabled={parseFloat(verifiedAssets) <= 0}
+                  isDisabled={!isProofVerified || parseFloat(verifiedAssets) <= 0}
                 >
                   Contribute Zakat Now
                 </Button>
 
-                {parseFloat(verifiedAssets) <= 0 && (
+                {!isProofVerified && (
                   <Alert status="info" mt={2}>
                     <AlertIcon />
-                    <AlertDescription>You need to verify your assets before contributing</AlertDescription>
+                    <AlertDescription>You need to verify your assets with the Brevis network before contributing</AlertDescription>
                   </Alert>
                 )}
               </Box>
