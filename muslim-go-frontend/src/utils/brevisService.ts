@@ -39,7 +39,8 @@ export class BrevisService {
         queryKey: response.data.proofData?.queryKey,
         vkHash: response.data.proofData?.vkHash,
         verified: response.data.proofData?.verified,
-        message: `Zakat verification successful`
+        message: `Zakat verification initiated`,
+        simulated: response.data.proofData?.simulated
       };
     } catch (error: any) {
       console.error(`Error generating Zakat proof:`, error);
@@ -51,58 +52,12 @@ export class BrevisService {
   }
 
   /**
-   * Generate a proof for Premium verification and submit it to Brevis network
-   * 
-   * @param txHash The transaction hash containing the premium status
-   * @param userAddress The user's address to be used for callbacks
-   * @returns The proof response with verification status
-   */
-  async generatePremiumProof(txHash: string, userAddress?: string) {
-    console.log(`Generating Premium proof for transaction ${txHash}`);
-    
-    try {
-      // First, check if the server is available
-      const statusResponse = await axios.get(`${API_SERVER_URL}/status`);
-      if (statusResponse.status !== 200) {
-        throw new Error(`API server is not available`);
-      }
-      
-      // Send the request to generate and submit proof
-      const response = await axios.post(`${API_SERVER_URL}/api/generate-proof/premium`, {
-        txHash: txHash,
-        userAddress: userAddress
-      });
-      
-      if (response.status !== 200 || !response.data.success) {
-        throw new Error(`Proof verification failed: ${JSON.stringify(response.data)}`);
-      }
-      
-      console.log(`Premium proof generated successfully:`, response.data);
-      
-      return {
-        success: true,
-        proofData: response.data.proofData,
-        queryKey: response.data.proofData?.queryKey,
-        vkHash: response.data.proofData?.vkHash,
-        verified: response.data.proofData?.verified,
-        message: `Premium verification successful`
-      };
-    } catch (error: any) {
-      console.error(`Error generating Premium proof:`, error);
-      return {
-        success: false,
-        error: error.message || `Failed to generate Premium proof`
-      };
-    }
-  }
-
-  /**
    * Check if a proof has been verified on the Brevis network
    * 
    * @param queryKey The query key returned from the proof generation
    * @returns Status of the proof verification
    */
-  async checkProofStatus(queryKey: string) {
+  async checkProofStatus(queryKey: any) {
     if (!queryKey) {
       return {
         success: false,
@@ -111,7 +66,15 @@ export class BrevisService {
     }
     
     try {
-      const response = await axios.get(`${API_SERVER_URL}/api/check-proof/${queryKey}`);
+      // Extract query_hash and nonce from queryKey
+      const { query_hash, nonce } = queryKey;
+      
+      if (!query_hash || nonce === undefined) {
+        throw new Error('Invalid query key format');
+      }
+      
+      // Call the endpoint with the correct parameters
+      const response = await axios.get(`${API_SERVER_URL}/api/check-proof/${query_hash}/${nonce}`);
       
       if (response.status !== 200 || !response.data.success) {
         throw new Error(`Failed to check proof status: ${JSON.stringify(response.data)}`);
@@ -120,7 +83,10 @@ export class BrevisService {
       return {
         success: true,
         status: response.data.status,
-        verified: response.data.verified
+        verified: response.data.verified,
+        simulated: response.data.simulated,
+        tx: response.data.tx,
+        message: response.data.message
       };
     } catch (error: any) {
       console.error('Error checking proof status:', error);
@@ -173,7 +139,8 @@ export class BrevisService {
    * This is for testing purposes
    */
   getSampleTransactionHash(): string {
-    // This is the sample hash used in the Brevis examples
+    // This should be a real transaction hash from Ethereum mainnet that contains the expected data
+    // Ideally, this should be a transaction that includes an event with the right parameters
     return '0x8a7fc50330533cd0adbf71e1cfb51b1b6bbe2170b4ce65c02678cf08c8b17737';
   }
 }

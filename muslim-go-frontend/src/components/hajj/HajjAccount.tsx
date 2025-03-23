@@ -16,14 +16,10 @@ import {
   Alert,
   AlertIcon,
   AlertDescription,
-  Spinner,
-  Input,
-  Code,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../../contexts/Web3Context';
 import { getHajjContract, parseEther, formatEther } from '../../utils/contracts';
-import { brevisService } from '../../utils/brevisService'; // Import the improved service
 
 interface AccountInfo {
   goal: ethers.BigNumber;
@@ -42,136 +38,10 @@ const HajjAccount: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [txHash, setTxHash] = useState<string>('');
-  const [proversStatus, setProversStatus] = useState<{zakatService: boolean, premiumService: boolean}>({
-    zakatService: false,
-    premiumService: false
-  });
-  const [isCheckingProvers, setIsCheckingProvers] = useState(true);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
-  const [proofResponse, setProofResponse] = useState<any>(null);
   const toast = useToast();
   
   const bgColor = useColorModeValue('white', 'gray.700');
   const progressColor = useColorModeValue('green.500', 'green.300');
-
-  // Check prover services availability
-  useEffect(() => {
-    const checkProvers = async () => {
-      setIsCheckingProvers(true);
-      try {
-        const status = await brevisService.checkProverServices();
-        setProversStatus(status);
-      } catch (error) {
-        console.error('Failed to check prover services:', error);
-        setProversStatus({ zakatService: false, premiumService: false });
-      } finally {
-        setIsCheckingProvers(false);
-      }
-    };
-    
-    checkProvers();
-    
-    // Check every 30 seconds
-    const interval = setInterval(checkProvers, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Handle transaction hash input change
-  const handleTxHashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTxHash(e.target.value);
-  };
-
-  // Fill with sample transaction hash
-  const fillSampleTxHash = () => {
-    setTxHash(brevisService.getSampleTransactionHash());
-  };
-
-  // Verify premium status with the Brevis service
-  const verifyPremiumStatus = async () => {
-    if (!provider || !account || !isCorrectNetwork) {
-      toast({
-        title: 'Connection error',
-        description: 'Please connect your wallet to Sepolia network',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!txHash || txHash.trim() === '') {
-      toast({
-        title: 'Missing transaction hash',
-        description: 'Please enter a valid transaction hash for verification',
-        status: 'error',
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    if (!proversStatus.premiumService) {
-      toast({
-        title: 'Premium prover unavailable',
-        description: 'The Premium prover service is not available. Please ensure it is running.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    setIsVerifying(true);
-    setVerificationError(null);
-    setProofResponse(null);
-    
-    try {
-      toast({
-        title: 'Generating proof',
-        description: 'Connecting to Premium prover service...',
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-      
-      // Call the prover service
-      const result = await brevisService.generatePremiumProof(txHash);
-      
-      if (result.success) {
-        // Store the proof response for reference
-        setProofResponse(result);
-        
-        toast({
-          title: 'Proof generated',
-          description: 'Premium status proof was successfully generated. For demonstration purposes, we will update your premium status in the UI.',
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-        });
-        
-        // For demonstration purposes only - update the premium status
-        setIsPremiumUser(true);
-      } else {
-        throw new Error(result.error || 'Verification failed');
-      }
-    } catch (error: any) {
-      console.error('Verification error:', error);
-      setVerificationError(error.message || 'Unknown error');
-      
-      toast({
-        title: 'Verification failed',
-        description: error.message || 'An error occurred during verification',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   // Check if user is a verified premium user
   const checkPremiumStatus = async () => {
@@ -495,89 +365,13 @@ const HajjAccount: React.FC = () => {
           </Alert>
         )}
 
-        {isCheckingProvers ? (
-          <Flex justify="center" align="center" p={4}>
-            <Spinner size="sm" mr={2} />
-            <Text>Checking prover services...</Text>
-          </Flex>
-        ) : !proversStatus.premiumService ? (
-          <Alert status="error">
-            <AlertIcon />
-            <AlertDescription>
-              The Premium prover service is not available. Please ensure it is running on port 33258.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert status="success" variant="subtle">
-            <AlertIcon />
-            <AlertDescription>
-              Premium prover service is online and ready to verify transactions.
-            </AlertDescription>
-          </Alert>
-        )}
-
         {account && isCorrectNetwork && !isPremiumUser && (
-          <>
-            <Alert status="info">
-              <AlertIcon />
-              <AlertDescription>
-                This is a premium feature. You need to be a verified premium user to access Hajj savings.
-              </AlertDescription>
-            </Alert>
-            
-            <Box borderWidth={1} borderRadius="md" p={5}>
-              <Heading size="sm" mb={3}>Verify Premium Status</Heading>
-              <Text mb={4}>
-                To access the Hajj Savings Program, you need to verify your premium status using a transaction hash that confirms your premium membership.
-              </Text>
-              
-              <FormControl id="txHash" mb={4}>
-                <FormLabel>Transaction Hash for Verification</FormLabel>
-                <Flex gap={2}>
-                  <Input
-                    value={txHash}
-                    onChange={handleTxHashChange}
-                    placeholder="Enter transaction hash for premium verification"
-                  />
-                  <Button size="sm" onClick={fillSampleTxHash}>
-                    Sample
-                  </Button>
-                </Flex>
-              </FormControl>
-              
-              <Button
-                colorScheme="teal"
-                onClick={verifyPremiumStatus}
-                isLoading={isVerifying}
-                loadingText="Verifying..."
-                isDisabled={!txHash || !proversStatus.premiumService}
-              >
-                Verify Premium Status
-              </Button>
-              
-              {verificationError && (
-                <Alert status="error" mt={4}>
-                  <AlertIcon />
-                  <Flex direction="column">
-                    <AlertDescription>Verification failed</AlertDescription>
-                    <Code mt={2} fontSize="xs">{verificationError}</Code>
-                  </Flex>
-                </Alert>
-              )}
-              
-              {proofResponse && (
-                <Alert status="info" variant="subtle" mt={4}>
-                  <AlertIcon />
-                  <Flex direction="column">
-                    <AlertDescription fontWeight="bold">Proof Generated</AlertDescription>
-                    <Text fontSize="sm" mt={2}>
-                      A premium status proof was successfully generated. This proof would normally be submitted to the blockchain.
-                    </Text>
-                  </Flex>
-                </Alert>
-              )}
-            </Box>
-          </>
+          <Alert status="info">
+            <AlertIcon />
+            <AlertDescription>
+              This is a premium feature. You need to be a verified premium user to access Hajj savings.
+            </AlertDescription>
+          </Alert>
         )}
 
         {account && isCorrectNetwork && isPremiumUser && (

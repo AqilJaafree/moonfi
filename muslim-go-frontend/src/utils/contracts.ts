@@ -550,7 +550,7 @@ export const SEPOLIA_NETWORK = {
   chainId: '0xaa36a7', // 11155111 in hex
   chainName: 'Sepolia Testnet',
   nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-  rpcUrls: ['https://rpc.sepolia.org'],
+  rpcUrls: ['https://eth-sepolia.g.alchemy.com/v2/jO3LYpDIBDFsLa5PhvYc8sISvySLQWv_'],
   blockExplorerUrls: ['https://sepolia.etherscan.io']
 };
 
